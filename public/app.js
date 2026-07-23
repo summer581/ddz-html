@@ -487,6 +487,7 @@ function renderSeat(node, seat, title, direction) {
   const badgeBits = [];
   if (seat.isLandlord) badgeBits.push('<span class="badge landlord">地主</span>');
   if (seat.connected) badgeBits.push('<span class="badge live">在线</span>');
+  if (seat.isBot) badgeBits.push('<span class="badge bot">模拟</span>');
   if (seat.isYou) badgeBits.push('<span class="badge">你</span>');
   const bidText = seat.bid === null ? '未叫分' : `${seat.bid} 分`;
   const safeName = escapeHtml(seat.name);
@@ -664,6 +665,16 @@ function renderActions(room) {
     startBtn.disabled = !room.canStart;
     startBtn.addEventListener('click', () => sendAction('start'));
     actionBar.appendChild(startBtn);
+
+    const emptySeats = (room.players || []).filter((player) => player && player.empty).length;
+    if (emptySeats > 0) {
+      const botBtn = document.createElement('button');
+      botBtn.type = 'button';
+      botBtn.className = 'small-btn';
+      botBtn.textContent = emptySeats > 1 ? '添加模拟用户' : '补 1 个模拟用户';
+      botBtn.addEventListener('click', () => sendAction('addBots'));
+      actionBar.appendChild(botBtn);
+    }
     return;
   }
 

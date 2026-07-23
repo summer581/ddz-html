@@ -14,6 +14,8 @@ const BASE_SCORE = 10;
 const CHAT_VISIBLE_MS = 10000;
 const MAX_CHAT_MESSAGES = 24;
 const MAX_CHAT_LENGTH = 80;
+const BOT_NAMES = ['模拟用户 A', '模拟用户 B'];
+const BOT_ACTION_DELAY_MS = 650;
 
 const SUITS = [
   { key: 'S', symbol: '♠', order: 0 },
@@ -187,6 +189,7 @@ function createRoom(code) {
     settlement: null,
     chatMessages: [],
     history: [],
+    botTimer: null,
     createdAt: Date.now(),
   };
 }
@@ -230,6 +233,32 @@ function pushHistory(room, text) {
   if (room.history.length > 60) {
     room.history.splice(0, room.history.length - 60);
   }
+}
+
+function addSimulatedUsers(room) {
+  let added = 0;
+  let botIndex = [...room.players.values()].filter((player) => player.isBot).length;
+
+  for (let seat = 0; seat < room.seats.length && playerCount(room) < 3; seat += 1) {
+    if (room.seats[seat]) continue;
+    const name = BOT_NAMES[botIndex] || `模拟用户 ${botIndex + 1}`;
+    const id = `bot-${room.code}-${seat}`;
+    room.seats[seat] = id;
+    room.players.set(id, {
+      id,
+      name,
+      seat,
+      connected: true,
+      isBot: true,
+      score: INITIAL_SCORE,
+      joinedAt: Date.now(),
+    });
+    pushHistory(room, `${name} 加入了房间`);
+    added += 1;
+    botIndex += 1;
+  }
+
+  return added;
 }
 
 function pruneChatMessages(room) {
@@ -638,6 +667,104 @@ function resolveBidding(room) {
   );
 }
 
+function cardWeight(card) {
+  return card.rank * 10 + (SUIT_ORDER.get(card.suit) ?? 9);
+}
+
+function lowestSingleAbove(cards, minRank = -Infinity) {
+  return cards
+    .filter((card) => card.rank > minRank)
+    .slice()
+    .sort((a, b) => cardWeight(a) - cardWeight(b))[0] || null;
+}
+
+function chooseBotCard(room, seat) {
+  const hand = room.hands[seat] || [];
+  if (!room.currentCombo) return lowestSingleAbove(hand);
+  if (room.currentCombo.type !== 'single') return null;
+  return lowestSingleAbove(hand, room.currentCombo.mainRank);
+}
+
+function applyBotBid(room, player) {
+  const hasPositiveBid = room.bids.some((bid) => bid > 0);
+  const score = hasPositiveBid ? 0 : 1;
+  room.bids[player.seat] = score;
+  pushHistory(room, `${player.name} 选择了 ${score === 0 ? '不叫' : `${score} 分`}`);
+  room.bidTurnSeat = (player.seat + 1) % 3;
+
+  if (room.bids.every((bid) => bid !== null)) {
+    resolveBidding(room);
+  }
+}
+
+function applyBotPlay(room, player, card) {
+  const combo = analyzeCombo([card]);
+  const hand = room.hands[player.seat];
+  room.hands[player.seat] = hand.filter((item) => item.id !== card.id);
+  room.currentCombo = combo;
+  room.currentCards = [cloneCard(card)];
+  room.lastPlaySeat = player.seat;
+  room.passCount = 0;
+  pushHistory(room, `${player.name} 出了 ${combo.label}：${formatCard(card)}`);
+
+  if (room.hands[player.seat].length === 0) {
+    room.phase = 'ended';
+    room.winnerSeat = player.seat;
+    pushHistory(room, `${player.name} 已经出完手牌，${player.name} 获胜`);
+    applySettlement(room, player.seat);
+  } else {
+    room.turnSeat = (player.seat + 1) % 3;
+  }
+}
+
+function applyBotPass(room, player) {
+  room.passCount += 1;
+  pushHistory(room, `${player.name} 选择不要`);
+  if (room.passCount >= 2) {
+    room.currentCombo = null;
+    room.currentCards = [];
+    room.passCount = 0;
+    room.turnSeat = room.lastPlaySeat;
+    pushHistory(room, '两家都不要，轮到上一个出牌的人重新出牌');
+  } else {
+    room.turnSeat = (player.seat + 1) % 3;
+  }
+}
+
+function currentBotTurnPlayer(room) {
+  const seat = room.phase === 'bidding' ? room.bidTurnSeat : room.turnSeat;
+  if (seat === null || seat === undefined || seat < 0) return null;
+  const playerId = room.seats[seat];
+  const player = playerId ? room.players.get(playerId) : null;
+  return player && player.isBot ? player : null;
+}
+
+function scheduleBotTurn(room) {
+  if (room.botTimer || (room.phase !== 'bidding' && room.phase !== 'playing')) return;
+  const player = currentBotTurnPlayer(room);
+  if (!player) return;
+
+  room.botTimer = setTimeout(() => {
+    room.botTimer = null;
+    const current = currentBotTurnPlayer(room);
+    if (!current || current.id !== player.id) return;
+
+    if (room.phase === 'bidding') {
+      applyBotBid(room, current);
+    } else if (room.phase === 'playing') {
+      const card = chooseBotCard(room, current.seat);
+      if (card) {
+        applyBotPlay(room, current, card);
+      } else if (room.currentCombo) {
+        applyBotPass(room, current);
+      }
+    }
+
+    broadcast(room);
+    scheduleBotTurn(room);
+  }, BOT_ACTION_DELAY_MS);
+}
+
 function buildState(room, viewerId) {
   const viewerSeat = seatOf(room, viewerId);
   const players = room.seats.map((playerId, seat) => {
@@ -657,6 +784,7 @@ function buildState(room, viewerId) {
       bid: room.bids[seat],
       isLandlord: room.landlordSeat === seat,
       isYou: playerId === viewerId,
+      isBot: Boolean(player && player.isBot),
       score: player && Number.isFinite(player.score) ? player.score : INITIAL_SCORE,
     };
   });
@@ -956,6 +1084,21 @@ async function handleAction(req, res) {
       return;
     }
 
+    if (action === 'addBots') {
+      if (room.phase !== 'waiting') {
+        replyJson(res, 409, jsonError('只有等待开局时才能添加模拟用户'));
+        return;
+      }
+      const added = addSimulatedUsers(room);
+      if (!added) {
+        replyJson(res, 409, jsonError('房间已经满了'));
+        return;
+      }
+      replyJson(res, 200, { ok: true, added, state: buildState(room, playerId) });
+      broadcast(room);
+      return;
+    }
+
     if (action === 'start') {
       if (!(room.phase === 'waiting' || room.phase === 'ended')) {
         replyJson(res, 409, jsonError('当前不能开始新局'));
@@ -969,6 +1112,7 @@ async function handleAction(req, res) {
       pushHistory(room, '叫分开始');
       replyJson(res, 200, { ok: true, state: buildState(room, playerId) });
       broadcast(room);
+      scheduleBotTurn(room);
       return;
     }
 
@@ -1000,6 +1144,7 @@ async function handleAction(req, res) {
 
       replyJson(res, 200, { ok: true, state: buildState(room, playerId) });
       broadcast(room);
+      scheduleBotTurn(room);
       return;
     }
 
@@ -1067,6 +1212,7 @@ async function handleAction(req, res) {
 
       replyJson(res, 200, { ok: true, state: buildState(room, playerId) });
       broadcast(room);
+      scheduleBotTurn(room);
       return;
     }
 
@@ -1096,6 +1242,7 @@ async function handleAction(req, res) {
       }
       replyJson(res, 200, { ok: true, state: buildState(room, playerId) });
       broadcast(room);
+      scheduleBotTurn(room);
       return;
     }
 
@@ -1112,6 +1259,7 @@ async function handleAction(req, res) {
       pushHistory(room, '准备新一局叫分');
       replyJson(res, 200, { ok: true, state: buildState(room, playerId) });
       broadcast(room);
+      scheduleBotTurn(room);
       return;
     }
 

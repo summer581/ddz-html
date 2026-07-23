@@ -452,6 +452,12 @@ button:disabled {
   border-color: transparent;
 }
 
+.badge.bot {
+  color: #1f1b16;
+  background: #f6efe2;
+  border-color: transparent;
+}
+
 .center-panel {
   display: grid;
   gap: 10px;

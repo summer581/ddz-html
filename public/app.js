@@ -90,20 +90,23 @@ function closeBrowserPage() {
   if (state.closingPage) return;
   state.closingPage = true;
   clearSource();
+  clearChatTimer();
+  clearDealAnimation();
+  clearBombAnimation();
+  document.documentElement.classList.add('page-closed-root');
+  document.body.classList.add('page-closed');
+}
 
-  try {
-    window.open('', '_self');
-  } catch (error) {
-    // ignore
+function restoreBrowserPage() {
+  if (!state.closingPage) return;
+  state.closingPage = false;
+  document.documentElement.classList.remove('page-closed-root');
+  document.body.classList.remove('page-closed');
+
+  if (state.roomCode && state.playerId) {
+    openStream();
   }
-  window.close();
-  window.setTimeout(() => {
-    try {
-      location.replace('about:blank');
-    } catch (error) {
-      // ignore
-    }
-  }, 120);
+  render();
 }
 
 function requestRoomEscapeClose() {
@@ -984,6 +987,13 @@ chatForm.addEventListener('submit', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  const isUndo = event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'z';
+  if (isUndo && state.closingPage) {
+    event.preventDefault();
+    restoreBrowserPage();
+    return;
+  }
+
   if (event.key !== 'Escape' || !state.room || state.closingPage) return;
   event.preventDefault();
   requestRoomEscapeClose();

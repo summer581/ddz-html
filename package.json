@@ -1,0 +1,13 @@
+{
+  "name": "ddz-lan",
+  "version": "1.0.0",
+  "private": true,
+  "description": "局域网斗地主 HTML 小游戏",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

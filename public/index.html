@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>斗地主局域网房间</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-title">斗地主</div>
+        <div class="brand-sub" id="statusText">等待加入房间</div>
+      </div>
+      <div class="top-meta">
+        <div class="meta-pill" id="roomBadge">未加入</div>
+        <button class="ghost-btn" id="copyLinkBtn" type="button">复制邀请链接</button>
+        <button class="ghost-btn danger-btn hidden" id="leaveBtn" type="button">退出房间</button>
+      </div>
+    </header>
+
+    <div class="join-screen" id="joinScreen">
+      <section class="join-panel">
+        <h1>斗地主局域网对局</h1>
+        <p class="join-note">3 名玩家在同一局域网里打开同一个房间码就能联机。</p>
+        <div class="field-grid">
+          <label class="field">
+            <span>昵称</span>
+            <input id="nameInput" maxlength="16" placeholder="例如：小明" />
+          </label>
+          <label class="field">
+            <span>房间码</span>
+            <input id="roomInput" maxlength="8" placeholder="留空自动创建" />
+          </label>
+        </div>
+        <div class="join-actions">
+          <button class="primary-btn" id="joinBtn" type="button">创建 / 加入</button>
+        </div>
+        <div class="join-tip" id="joinTip">首次进入会自动创建房间；把房间码发给另外两台设备即可。</div>
+      </section>
+    </div>
+
+    <main class="game-shell hidden" id="gameShell">
+      <div class="deal-animation-layer hidden" id="dealAnimationLayer" aria-hidden="true"></div>
+      <div class="bomb-animation-layer hidden" id="bombAnimationLayer" aria-hidden="true"></div>
+      <section class="table-area">
+        <div class="seat-panel" id="seatLeft"></div>
+        <div class="center-panel" id="centerPanel">
+          <div class="center-row">
+            <div class="center-label">局势</div>
+            <div class="center-value" id="phaseLabel">-</div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">轮到</div>
+            <div class="center-value" id="turnLabel">-</div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">地主</div>
+            <div class="center-value" id="landlordLabel">-</div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">上手</div>
+            <div class="center-value" id="comboLabel">-</div>
+          </div>
+          <div class="played-cards-wrap">
+            <div class="center-label" id="playedByLabel">出牌</div>
+            <div class="played-cards" id="playedCards"></div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">底分</div>
+            <div class="center-value" id="baseScoreLabel">-</div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">倍率</div>
+            <div class="center-value" id="multiplierLabel">-</div>
+          </div>
+          <div class="center-row">
+            <div class="center-label">结算</div>
+            <div class="center-value" id="settlementLabel">-</div>
+          </div>
+          <div class="score-board" id="scoreBoard"></div>
+          <div class="bottom-cards-wrap">
+            <div class="center-label">底牌</div>
+            <div class="bottom-cards" id="bottomCards"></div>
+          </div>
+        </div>
+        <div class="seat-panel" id="seatRight"></div>
+      </section>
+
+      <section class="hand-area">
+        <div class="hand-head">
+          <div>
+            <div class="section-title">我的手牌</div>
+            <div class="subtle" id="handHint">未选择牌</div>
+            <div class="chat-bubble mine hidden" id="myChatBubble"></div>
+          </div>
+          <div class="hand-tools">
+            <div class="action-bar" id="actionBar"></div>
+            <form class="chat-form" id="chatForm">
+              <div class="chat-input-wrap">
+                <input id="chatInput" maxlength="80" placeholder="说句话" autocomplete="off" />
+              </div>
+              <button class="small-btn" type="submit">发送</button>
+            </form>
+          </div>
+        </div>
+        <div class="hand" id="hand"></div>
+      </section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
